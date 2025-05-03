@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Load Testing UI</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        button.stop {
+            background-color: #dc3545;
+        }
+        button.stop:hover {
+            background-color: #c82333;
+        }
+        button.stop.inactive {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        button.stop.inactive:hover {
+            background-color: #6c757d;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+        }
+        .tab.active {
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            margin-bottom: -2px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        #output, #history {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .error {
+            color: #dc3545;
+            margin-top: 10px;
+        }
+        .history-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            padding: 15px;
+        }
+        .history-item h3 {
+            margin-top: 0;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .history-item .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .history-item .params {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: none;
+        }
+        .history-item .output {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            display: none;
+        }
+        .history-item.expanded .params,
+        .history-item.expanded .output {
+            display: block;
+        }
+        .toggle-icon {
+            font-size: 1.2em;
+            color: #666;
+        }
+        .history-item.expanded .toggle-icon {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Load Testing UI</h1>
+        <div class="tabs">
+            <button class="tab active" data-tab="test">Run Test</button>
+            <button class="tab" data-tab="history">History</button>
+        </div>
+        <div id="testTab" class="tab-content active">
+            <form id="loadTestForm">
+                <div class="form-group">
+                    <label for="url">URL:</label>
+                    <input type="text" id="url" name="url" class="form-control" value="http://example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="method">HTTP Method:</label>
+                    <select id="method" name="method" class="form-control">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="clientType">Load Testing Client:</label>
+                    <select id="clientType" name="clientType" class="form-control">
+                        <option value="k6">k6</option>
+                        <option value="wrk">wrk</option>
+                        <option value="ghz">ghz</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="body">Request Body (for POST/PUT):</label>
+                    <textarea id="body" name="body" class="form-control" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="goroutines">Initial Goroutines:</label>
+                    <input type="number" id="goroutines" name="goroutines" value="1" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="duration">Test Duration (seconds):</label>
+                    <input type="number" id="duration" name="duration" value="5" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="latencyThreshold">Max Latency Increase (%):</label>
+                    <input type="number" id="latencyThreshold" name="latencyThreshold" value="15.0" step="0.1" required>
+                </div>
+                <div class="form-group">
+                    <label for="rpsThreshold">Min RPS Increase (%):</label>
+                    <input type="number" id="rpsThreshold" name="rpsThreshold" value="4.0" step="0.1" required>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="debug" name="debug" checked>
+                        Enable Debug Output
+                    </label>
+                </div>
+                <div class="button-group">
+                    <button type="submit" id="startButton">Run Load Test</button>
+                    <button type="button" id="stopButton" class="stop inactive">Stop Test</button>
+                </div>
+            </form>
+            <div id="output"></div>
+        </div>
+        <div id="historyTab" class="tab-content">
+            <div id="history"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('loadTestForm');
+        const output = document.getElementById('output');
+        const history = document.getElementById('history');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const methodSelect = document.getElementById('method');
+        const bodyField = document.getElementById('body').closest('.form-group');
+        let currentTest = null;
+        let testHistory = [];
+
+        // Initialize stop button as inactive
+        stopButton.classList.add('inactive');
+
+        // Show/hide body field based on method
+        function updateBodyFieldVisibility() {
+            const method = methodSelect.value;
+            bodyField.style.display = (method === 'POST' || method === 'PUT') ? 'block' : 'none';
+        }
+
+        // Add event listener for method changes
+        methodSelect.addEventListener('change', updateBodyFieldVisibility);
+        
+        // Initial visibility state
+        updateBodyFieldVisibility();
+
+        // Tab switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`${targetTab}Tab`).classList.add('active');
+            });
+        });
+
+        stopButton.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/stop-test', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                stopButton.classList.add('inactive');
+            } catch (error) {
+                output.textContent += `\nError stopping test: ${error.message}`;
+            }
+        });
+
+        function addToHistory(params, output) {
+            const historyItem = {
+                timestamp: new Date().toLocaleString(),
+                params: { ...params },
+                output: output
+            };
+            testHistory.unshift(historyItem);
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            history.innerHTML = testHistory.map(item => `
+                <div class="history-item">
+                    <h3>
+                        Test Run - ${item.timestamp}
+                        <span class="toggle-icon">▼</span>
+                    </h3>
+                    <div class="params">
+                        <strong>Parameters:</strong><br>
+                        URL: ${item.params.url}<br>
+                        Method: ${item.params.method}<br>
+                        Body: <pre>${item.params.body || ''}</pre><br>
+                        Goroutines: ${item.params.goroutines}<br>
+                        Duration: ${item.params.duration}s<br>
+                        Max Latency Increase: ${item.params.latencyThreshold}%<br>
+                        Min RPS Increase: ${item.params.rpsThreshold}%<br>
+                        Debug: ${item.params.debug === 'true' ? 'Yes' : 'No'}
+                    </div>
+                    <div class="output">${item.output}</div>
+                </div>
+            `).join('');
+
+            // Add click handlers for collapsible sections
+            document.querySelectorAll('.history-item h3').forEach(header => {
+                header.addEventListener('click', () => {
+                    const item = header.parentElement;
+                    item.classList.toggle('expanded');
+                });
+            });
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Get form data first
+            const formData = new FormData(form);
+            
+            // Get and validate URL
+            const url = formData.get('url');
+            if (!url) {
+                output.textContent = 'Error: URL is required';
+                return;
+            }
+            
+            try {
+                new URL(url); // Validate URL format
+            } catch (error) {
+                output.textContent = 'Error: Invalid URL format';
+                return;
+            }
+            
+            // Disable the form while running
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            stopButton.classList.remove('inactive');
+            output.textContent = 'Starting load test...\n';
+            
+            // Create request body from form data
+            const requestBody = {
+                url: url,
+                goroutines: parseInt(formData.get('goroutines')),
+                duration: `${formData.get('duration')}s`,
+                maxLatencyIncrease: parseFloat(formData.get('latencyThreshold')),
+                minRpsIncrease: parseFloat(formData.get('rpsThreshold')),
+                debug: formData.has('debug'),
+                method: formData.get('method') || 'GET',
+                body: formData.get('body') || '',
+                clientType: formData.get('clientType') || 'k6'
+            };
+            
+            try {
+                const response = await fetch('/run-test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullOutput = '';
+
+                while (true) {
+                    const {value, done} = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, {stream: true});
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep the last incomplete line in the buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const content = line.slice(6);
+                            output.textContent += content + '\n';
+                            fullOutput += content + '\n';
+                            // Auto-scroll to bottom
+                            output.scrollTop = output.scrollHeight;
+                        }
+                    }
+                }
+
+                // Add to history
+                addToHistory(requestBody, fullOutput);
+            } catch (error) {
+                output.textContent += `\nError: ${error.message}`;
+                addToHistory(requestBody, output.textContent);
+            } finally {
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                stopButton.classList.add('inactive');
+            }
+        });
+    </script>
+</body>
+</html> 
